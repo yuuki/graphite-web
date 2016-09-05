@@ -152,6 +152,10 @@ def timestamp(datetime):
   "Convert a datetime object into epoch time"
   return time.mktime( datetime.timetuple() )
 
+def deltaseconds(timedelta):
+  "Convert a timedelta object into seconds (same as timedelta.total_seconds() in Python 2.7+)"
+  return (timedelta.microseconds + (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6) / 10**6
+
 # This whole song & dance is due to pickle being insecure
 # The SafeUnpickler classes were largely derived from
 # http://nadiana.com/python-pickle-insecure
@@ -160,7 +164,7 @@ if USING_CPICKLE:
   class SafeUnpickler(object):
     PICKLE_SAFE = {
       'copy_reg': set(['_reconstructor']),
-      '__builtin__': set(['object', 'list']),
+      '__builtin__': set(['object', 'list', 'set']),
       'collections': set(['deque']),
       'graphite.render.datalib': set(['TimeSeries']),
       'graphite.intervals': set(['Interval', 'IntervalSet']),
@@ -186,7 +190,7 @@ else:
   class SafeUnpickler(pickle.Unpickler):
     PICKLE_SAFE = {
       'copy_reg': set(['_reconstructor']),
-      '__builtin__': set(['object', 'list']),
+      '__builtin__': set(['object', 'list', 'set']),
       'collections': set(['deque']),
       'graphite.render.datalib': set(['TimeSeries']),
       'graphite.intervals': set(['Interval', 'IntervalSet']),

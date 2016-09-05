@@ -11,7 +11,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
-from urllib2 import urlopen
+import fnmatch
+import os
+import urllib
 
 from django.conf import settings
 from graphite.compat import HttpResponse, HttpResponseBadRequest
@@ -19,7 +21,6 @@ from graphite.util import getProfile, json
 from graphite.logger import log
 from graphite.storage import STORE
 from graphite.carbonlink import CarbonLink
-import fnmatch, os
 
 try:
   import cPickle as pickle
@@ -28,8 +29,11 @@ except ImportError:
 
 
 def index_json(request):
-  jsonp = request.REQUEST.get('jsonp', False)
-  cluster = request.REQUEST.get('cluster', False)
+  queryParams = request.GET.copy()
+  queryParams.update(request.POST)
+
+  jsonp = queryParams.get('jsonp', False)
+  cluster = queryParams.get('cluster', False)
 
   def find_matches():
     matches = []
@@ -55,11 +59,16 @@ def index_json(request):
       for m in sorted(matches)
     ]
     return matches
+
   matches = []
-  if cluster and len(settings.CLUSTER_SERVERS) > 1:
-    matches = reduce( lambda x, y: list(set(x + y)), \
-        [json.loads(urlopen("http://" + cluster_server + "/metrics/index.json").read()) \
+  if cluster and len(settings.CLUSTER_SERVERS) >= 1:
+    try:
+      matches = reduce( lambda x, y: list(set(x + y)), \
+        [json.loads(urllib.urlopen('http://' + cluster_server + '/metrics/index.json').read()) \
         for cluster_server in settings.CLUSTER_SERVERS])
+    except urllib.URLError:
+      log.exception()
+      return json_response_for(request, matches, jsonp=jsonp, status=500)
   else:
     matches = find_matches()
   return json_response_for(request, matches, jsonp=jsonp)
@@ -68,25 +77,30 @@ def index_json(request):
 def find_view(request):
   "View for finding metrics matching a given pattern"
   profile = getProfile(request)
-  format = request.REQUEST.get('format', 'treejson')
-  local_only = int( request.REQUEST.get('local', 0) )
-  wildcards = int( request.REQUEST.get('wildcards', 0) )
-  fromTime = int( request.REQUEST.get('from', -1) )
-  untilTime = int( request.REQUEST.get('until', -1) )
-  jsonp = request.REQUEST.get('jsonp', False)
+
+  queryParams = request.GET.copy()
+  queryParams.update(request.POST)
+
+  format = queryParams.get('format', 'treejson')
+  local_only = int( queryParams.get('local', 0) )
+  wildcards = int( queryParams.get('wildcards', 0) )
+  fromTime = int( queryParams.get('from', -1) )
+  untilTime = int( queryParams.get('until', -1) )
+  nodePosition = int( queryParams.get('position', -1) )
+  jsonp = queryParams.get('jsonp', False)
 
   if fromTime == -1:
     fromTime = None
   if untilTime == -1:
     untilTime = None
 
-  automatic_variants = int( request.REQUEST.get('automatic_variants', 0) )
+  automatic_variants = int( queryParams.get('automatic_variants', 0) )
 
   try:
-    query = str( request.REQUEST['query'] )
+    query = str( queryParams['query'] )
   except:
     return HttpResponseBadRequest(content="Missing required parameter 'query'",
-                                  content_type="text/plain")
+                                  content_type='text/plain')
 
   if '.' in query:
     base_path = query.rsplit('.', 1)[0] + '.'
@@ -117,7 +131,11 @@ def find_view(request):
 
   if format == 'treejson':
     content = tree_json(matches, base_path, wildcards=profile.advancedUI or wildcards)
-    response = json_response_for(request, content)
+    response = json_response_for(request, content, jsonp=jsonp)
+
+  elif format == 'nodelist':
+    content = nodes_by_position(matches, nodePosition)
+    response = json_response_for(request, content, jsonp=jsonp)
 
   elif format == 'pickle':
     content = pickle_nodes(matches)
@@ -140,7 +158,7 @@ def find_view(request):
   else:
     return HttpResponseBadRequest(
         content="Invalid value for 'format' parameter",
-        content_type="text/plain")
+        content_type='text/plain')
 
   response['Pragma'] = 'no-cache'
   response['Cache-Control'] = 'no-cache'
@@ -149,12 +167,16 @@ def find_view(request):
 
 def expand_view(request):
   "View for expanding a pattern into matching metric paths"
-  local_only    = int( request.REQUEST.get('local', 0) )
-  group_by_expr = int( request.REQUEST.get('groupByExpr', 0) )
-  leaves_only   = int( request.REQUEST.get('leavesOnly', 0) )
+  queryParams = request.GET.copy()
+  queryParams.update(request.POST)
+
+  local_only = int( queryParams.get('local', 0) )
+  group_by_expr = int( queryParams.get('groupByExpr', 0) )
+  leaves_only = int( queryParams.get('leavesOnly', 0) )
+  jsonp = queryParams.get('jsonp', False)
 
   results = {}
-  for query in request.REQUEST.getlist('query'):
+  for query in queryParams.getlist('query'):
     results[query] = set()
     for node in STORE.find(query, local=local_only):
       if node.is_leaf or not leaves_only:
@@ -171,15 +193,19 @@ def expand_view(request):
     'results' : results
   }
 
-  response = json_response_for(request, result)
+  response = json_response_for(request, result, jsonp=jsonp)
   response['Pragma'] = 'no-cache'
   response['Cache-Control'] = 'no-cache'
   return response
 
 
 def get_metadata_view(request):
-  key = request.REQUEST['key']
-  metrics = request.REQUEST.getlist('metric')
+  queryParams = request.GET.copy()
+  queryParams.update(request.POST)
+
+  key = queryParams.get('key')
+  metrics = queryParams.getlist('metric')
+  jsonp = queryParams.get('jsonp', False)
   results = {}
   for metric in metrics:
     try:
@@ -188,7 +214,7 @@ def get_metadata_view(request):
       log.exception()
       results[metric] = dict(error="Unexpected error occurred in CarbonLink.get_metadata(%s, %s)" % (metric, key))
 
-  return json_response_for(request, results)
+  return json_response_for(request, results, jsonp=jsonp)
 
 
 def set_metadata_view(request):
@@ -221,7 +247,7 @@ def set_metadata_view(request):
           results[metric] = dict(error="Unexpected error occurred in bulk CarbonLink.set_metadata(%s)" % metric)
 
   else:
-    results = dict(error="Invalid request method")
+    results = dict(error='Invalid request method')
 
   return json_response_for(request, results)
 
@@ -261,7 +287,7 @@ def tree_json(nodes, base_path, wildcards=False):
 
     found.add(node.name)
     resultNode = {
-      'text' : str(node.name),
+      'text' : urllib.unquote_plus(str(node.name)),
       'id' : base_path + str(node.name),
     }
 
@@ -274,6 +300,16 @@ def tree_json(nodes, base_path, wildcards=False):
 
   results.extend(results_branch)
   results.extend(results_leaf)
+  return results
+
+
+def nodes_by_position(matches, position):
+  found = set()
+
+  for metric in matches:
+    nodes = metric.path.split('.')
+    found.add(nodes[position])
+  results = { 'nodes' : sorted(found) }
   return results
 
 

@@ -27,6 +27,22 @@ var NAV_BAR_REGION = cookieProvider.get('navbar-region') || 'north';
 
 var CONFIRM_REMOVE_ALL = cookieProvider.get('confirm-remove-all') != 'false';
 
+var currently_setting_hash = false;
+
+function changeHash(hash){
+    currently_setting_hash = true;
+    window.location.hash = hash;
+}
+
+if ("onhashchange" in window) // does the browser support the hashchange event?
+  window.onhashchange = function () {
+    if (currently_setting_hash){
+      currently_setting_hash = false;
+      return;
+    }
+    location.reload();
+  }
+
 /* Nav Bar configuration */
 var navBarNorthConfig = {
   region: 'north',
@@ -34,7 +50,7 @@ var navBarNorthConfig = {
   layoutConfig: { align: 'stretch' },
   collapsible: true,
   collapseMode: 'mini',
-  collapsed: true,
+  collapsed: false,
   split: true,
   title: "untitled",
   height: 350,
@@ -755,7 +771,7 @@ function initDashboard () {
   // Load initial dashboard state if it was passed in
   if (initialState) {
     applyState(initialState);
-    navBar.collapse();
+    navBar.collapse(false);
   }
 
   if(window.location.hash != '')
@@ -766,6 +782,7 @@ function initDashboard () {
     } else {
       sendLoadRequest(window.location.hash.substr(1));
     }
+    navBar.collapse(false);
   }
 
   if (initialError) {
@@ -1515,7 +1532,7 @@ function newFromMetric() {
     listeners: {
       specialkey: function (field, e) {
                     if (e.getKey() == e.ENTER) {
-                      applyUrl();
+                      applyMetric();
                     }
                   },
       afterrender: function (field) { field.focus(false, 100); }
@@ -2538,6 +2555,11 @@ function sendSaveRequest(name) {
                if (result.error) {
                  Ext.Msg.alert("Error", "There was an error saving this dashboard: " + result.error);
                }
+               if(newURL) {
+                 window.location = newURL;
+               } else {
+                 changeHash(name);
+               }
              },
     failure: failedAjaxCall
   });
@@ -2552,6 +2574,7 @@ function sendLoadRequest(name) {
                  Ext.Msg.alert("Error Loading Dashboard", result.error);
                } else {
                  applyState(result.state);
+                 navBar.collapse(false);
                }
              },
     failure: failedAjaxCall
@@ -2703,7 +2726,7 @@ function setDashboardName(name) {
     dashboardURL = urlparts.join('/');
 
     document.title = name + " - Graphite Dashboard";
-    window.location.hash = name;
+    changeHash(name);
     navBar.setTitle(name + " - (" + dashboardURL + ")");
     saveButton.setText('Save "' + name + '"');
     saveButton.enable();
@@ -2803,7 +2826,7 @@ function showDashboardFinder() {
     root: 'dashboards',
     sortInfo: {
       field: 'name',
-      direction: 'DESC'
+      direction: 'ASC'
     },
     listeners: {
       beforeload: function (store) {
@@ -3209,7 +3232,9 @@ function removeOuterCall() { // blatantly repurposed from composer_widgets.js (d
     for (i = 0; i < argString.length; i++) {
       switch (argString.charAt(i)) {
         case '(': depth += 1; break;
+        case '{': depth += 1; break;
         case ')': depth -= 1; break;
+        case '}': depth -= 1; break;
         case ',':
           if (depth > 0) { continue; }
           if (depth < 0) { Ext.Msg.alert("Malformed target, cannot remove outer call."); return; }

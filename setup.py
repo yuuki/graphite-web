@@ -34,8 +34,10 @@ else:
         cf.add_section('install')
     except ConfigParser.DuplicateSectionError:
         pass
-    cf.set('install', 'prefix', '/opt/graphite')
-    cf.set('install', 'install-lib', '%(prefix)s/webapp')
+    if not cf.has_option('install', 'prefix'):
+        cf.set('install', 'prefix', '/opt/graphite')
+    if not cf.has_option('install', 'install-lib'):
+        cf.set('install', 'install-lib', '%(prefix)s/webapp')
 
 with open('setup.cfg', 'wb') as f:
     cf.write(f)
@@ -68,7 +70,7 @@ try:
     setup(
       name='graphite-web',
       version='0.10.0-alpha',
-      url='http://graphite.readthedocs.org',
+      url='http://graphite.readthedocs.io',
       author='Chris Davis',
       author_email='chrismd@gmail.com',
       license='Apache Software License 2.0',
@@ -92,6 +94,15 @@ try:
         ['templates/*', 'local_settings.py.example']},
       scripts=glob('bin/*'),
       data_files=webapp_content.items() + storage_dirs + conf_files + examples,
+      classifiers=[
+          'Intended Audience :: Developers',
+          'Natural Language :: English',
+          'License :: OSI Approved :: Apache Software License',
+          'Programming Language :: Python',
+          'Programming Language :: Python :: 2',
+          'Programming Language :: Python :: 2.7',
+          'Programming Language :: Python :: 2 :: Only',
+          ],
       **setup_kwargs
     )
 finally:

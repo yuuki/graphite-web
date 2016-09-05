@@ -13,10 +13,10 @@ General Settings
 TIME_ZONE
   `Default: America/Chicago`
 
-  Set your local timezone. Timezone is specifed using `zoneinfo names <http://en.wikipedia.org/wiki/Zoneinfo#Names_of_time_zones>`_.
+  Set your local timezone. Timezone is specified using `zoneinfo names <http://en.wikipedia.org/wiki/Zoneinfo#Names_of_time_zones>`_.
 
 DOCUMENTATION_URL
-  `Default: http://graphite.readthedocs.org/`
+  `Default: http://graphite.readthedocs.io/`
 
   Overrides the `Documentation` link used in the header of the Graphite Composer.
 
@@ -84,9 +84,9 @@ STATIC_ROOT
   `Default: See below`
   The location of Graphite-web's static content. This defaults to ``static/`` three parent directories up from ``settings.py``. In the :ref:`default layout <default-installation-layout>` this is ``/opt/graphite/static``.
 
-  This directory doesn't even exists once you've installed graphite. It needs to be populated with the following command::
+  This directory doesn't even exist once you've installed graphite. It needs to be populated with the following command::
 
-      django-admin.py collectstatic --noinput --settings=graphite.settings
+      PYTHONPATH=$GRAPHITE_ROOT/webapp django-admin.py collectstatic --noinput --settings=graphite.settings
 
   This collects static files for graphite-web and external apps (namely, the Django admin app) and puts them in a directory that needs to be available under the ``/static/`` URL of your web server. To configure Apache::
 
@@ -273,7 +273,7 @@ DASHBOARD_REQUIRE_PERMISSIONS
   `Default: False`
 
   If set to True, dashboards can only be saved or deleted by users having the appropriate (change or delete) permission (as set in the Django Admin app). These permissions can be set at the user or group level.  Note that Django's 'add' permission is not used.
-  
+
   Note that DASHBOARD_REQUIRE_AUTHENTICATION must be set to true - if not, this setting is ignored.
 
 
@@ -297,7 +297,7 @@ See the `Django documentation <https://docs.djangoproject.com/en/dev/ref/setting
 If you are experiencing problems, uncomment the following line in /opt/graphite/webapp/graphite/local_settings.py:
 
 .. code-block:: none
-  
+
   # DEBUG = True
 
 and review your webapp logs. If you're using the default graphite-example-vhost.conf, your logs will be found in /opt/graphite/storage/log/webapp/.
@@ -305,7 +305,7 @@ and review your webapp logs. If you're using the default graphite-example-vhost.
 If you're using the default SQLite database, your webserver will need permissions to read and write to the database file. So, for example, if your webapp is running in Apache as the 'nobody' user, you will need to fix the permissions like this:
 
 .. code-block:: none
-  
+
   sudo chown nobody:nobody /opt/graphite/storage/graphite.db
 
 

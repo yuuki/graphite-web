@@ -26,6 +26,8 @@ WEBAPP_VERSION = '0.10.0-alpha'
 DEBUG = False
 JAVASCRIPT_DEBUG = False
 
+DATE_FORMAT = '%m/%d'
+
 # Filesystem layout
 WEB_DIR = dirname( abspath(__file__) )
 WEBAPP_DIR = dirname(WEB_DIR)
@@ -47,15 +49,15 @@ WHISPER_DIR = ''
 RRD_DIR = ''
 STANDARD_DIRS = []
 
-CLUSTER_SERVERS = []
-
 # Cluster settings
 CLUSTER_SERVERS = []
+# This settings control wether https is used to communicate between cluster members
+INTRACLUSTER_HTTPS = False
 REMOTE_FIND_TIMEOUT = 3.0
-REMOTE_FETCH_TIMEOUT = 6.0
+REMOTE_FETCH_TIMEOUT = 3.0
 REMOTE_RETRY_DELAY = 60.0
 REMOTE_EXCLUDE_LOCAL = False
-REMOTE_READER_CACHE_SIZE_LIMIT = 1000
+REMOTE_STORE_MERGE_RESULTS = True
 CARBON_METRIC_PREFIX='carbon'
 CARBONLINK_HOSTS = ["127.0.0.1:7002"]
 CARBONLINK_TIMEOUT = 1.0
@@ -64,6 +66,7 @@ CARBONLINK_RETRY_DELAY = 15
 REPLICATION_FACTOR = 1
 MEMCACHE_HOSTS = []
 MEMCACHE_KEY_PREFIX = ''
+CACHES={}
 FIND_CACHE_DURATION = 300
 FIND_TOLERANCE = 2 * FIND_CACHE_DURATION
 DEFAULT_CACHE_DURATION = 60 #metric data and graphs are cached for one minute by default
@@ -82,13 +85,16 @@ LOG_RENDERING_PERFORMANCE = False
 
 #Miscellaneous settings
 SMTP_SERVER = "localhost"
-DOCUMENTATION_URL = "http://graphite.readthedocs.org/"
+DOCUMENTATION_URL = "http://graphite.readthedocs.io/"
 ALLOW_ANONYMOUS_CLI = True
 LEGEND_MAX_ITEMS = 10
 RRD_CF = 'AVERAGE'
 STORAGE_FINDERS = (
     'graphite.finders.standard.StandardFinder',
 )
+MIDDLEWARE_CLASSES=''
+MAX_TAG_LENGTH = 50
+AUTO_REFRESH_INTERVAL = 60
 
 #Authentication settings
 USE_LDAP_AUTH = False
@@ -104,6 +110,7 @@ LDAP_URI = None
 #Set this to True to delegate authentication to the web server
 USE_REMOTE_USER_AUTHENTICATION = False
 REMOTE_USER_BACKEND = "" # Provide an alternate or subclassed backend
+AUTHENTICATION_BACKENDS=[]
 
 # Django 1.5 requires this so we set a default but warn the user
 SECRET_KEY = 'UNSAFE_DEFAULT'

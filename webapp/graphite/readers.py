@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from graphite.intervals import Interval, IntervalSet
 from graphite.carbonlink import CarbonLink
@@ -43,22 +44,27 @@ class MultiReader(object):
 
   def fetch(self, startTime, endTime):
     # Start the fetch on each node
-    results = [ n.fetch(startTime, endTime) for n in self.nodes ]
+    fetches = [ n.fetch(startTime, endTime) for n in self.nodes ]
 
-    # Wait for any asynchronous operations to complete
-    for i, result in enumerate(results):
-      if isinstance(result, FetchInProgress):
-        try:
-          results[i] = result.waitForResults()
-        except:
-          log.exception("Failed to complete subfetch")
-          results[i] = None
+    def merge_results():
+      results = {}
 
-    results = [r for r in results if r is not None]
-    if not results:
-      raise Exception("All sub-fetches failed")
+      # Wait for any asynchronous operations to complete
+      for i, result in enumerate(fetches):
+        if isinstance(result, FetchInProgress):
+          try:
+            results[i] = result.waitForResults()
+          except:
+            log.exception("Failed to complete subfetch")
+            results[i] = None
 
-    return reduce(self.merge, results)
+      results = [r for r in results.values() if r is not None]
+      if not results:
+        raise Exception("All sub-fetches failed")
+
+      return reduce(self.merge, results)
+
+    return FetchInProgress(merge_results)
 
   def merge(self, results1, results2):
     # Ensure results1 is finer than results2
@@ -131,16 +137,12 @@ class CeresReader(object):
       log.exception("Failed CarbonLink query '%s'" % self.real_metric_path)
       cached_datapoints = []
 
-    for (timestamp, value) in cached_datapoints:
-      interval = timestamp - (timestamp % data.timeStep)
+    values = merge_with_cache(cached_datapoints,
+                              data.startTime,
+                              data.timeStep,
+                              values)
 
-      try:
-        i = int(interval - data.startTime) / data.timeStep
-        values[i] = value
-      except:
-        pass
-
-    return (time_info, values)
+    return time_info, values
 
 
 class WhisperReader(object):
@@ -178,16 +180,12 @@ class WhisperReader(object):
     if isinstance(cached_datapoints, dict):
       cached_datapoints = cached_datapoints.items()
 
-    for (timestamp, value) in cached_datapoints:
-      interval = timestamp - (timestamp % step)
+    values = merge_with_cache(cached_datapoints,
+                              start,
+                              step,
+                              values)
 
-      try:
-        i = int(interval - start) / step
-        values[i] = value
-      except:
-        pass
-
-    return (time_info, values)
+    return time_info, values
 
 
 class GzippedWhisperReader(WhisperReader):
@@ -215,8 +213,14 @@ class GzippedWhisperReader(WhisperReader):
 class RRDReader:
   supported = bool(rrdtool)
 
+  @staticmethod
+  def _convert_fs_path(fs_path):
+    if isinstance(fs_path, unicode):
+      fs_path = fs_path.encode(sys.getfilesystemencoding())
+    return fs_path
+
   def __init__(self, fs_path, datasource_name):
-    self.fs_path = fs_path
+    self.fs_path = RRDReader._convert_fs_path(fs_path)
     self.datasource_name = datasource_name
 
   def get_intervals(self):
@@ -240,7 +244,7 @@ class RRDReader:
 
   @staticmethod
   def get_datasources(fs_path):
-    info = rrdtool.info(fs_path)
+    info = rrdtool.info(RRDReader._convert_fs_path(fs_path))
 
     if 'ds' in info:
       return [datasource_name for datasource_name in info['ds']]
@@ -251,7 +255,7 @@ class RRDReader:
 
   @staticmethod
   def get_retention(fs_path):
-    info = rrdtool.info(fs_path)
+    info = rrdtool.info(RRDReader._convert_fs_path(fs_path))
     if 'rra' in info:
       rras = info['rra']
     else:
@@ -269,3 +273,24 @@ class RRDReader:
         retention_points = points
 
     return  retention_points * info['step']
+
+
+def merge_with_cache(cached_datapoints, start, step, values):
+
+  for (timestamp, value) in cached_datapoints:
+      interval = timestamp - (timestamp % step)
+
+      try:
+          i = int(interval - start) / step
+          if i < 0:
+              # cached data point is earlier then the requested data point.
+              # meaning we can definitely ignore the cache result.
+              # note that we cannot rely on the 'except'
+              # in this case since 'values[-n]='
+              # is equivalent to 'values[len(values) - n]='
+              continue
+          values[i] = value
+      except:
+          pass
+
+  return values
