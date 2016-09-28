@@ -1,3 +1,4 @@
+import os
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from graphite.logger import log
@@ -10,7 +11,8 @@ class DynamoDB:
     self.client = boto3.resource('dynamodb', region_name='ap-northeast-1', endpoint_url="http://localhost:8000")
 
   def fetch(self, name, startTime, endTime):
-    table = self.client.Table("metrictest01") # configファイルから指定できるようにしたい
+    table_name = os.environ.get('DYNAMODB_TABLE_NAME')
+    table = self.client.Table(table_name) # configファイルから指定できるようにしたい
     response = table.query(
         Select='ALL_ATTRIBUTES',
         Limit=500, # 適当
